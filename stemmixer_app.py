@@ -20,7 +20,11 @@ HERE = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
 DATA_DIR = Path.home() / "StemMixer"
 
 # Model AI disimpan di folder data aplikasi (bisa ditulis), bukan di folder instalasi.
-os.environ.setdefault("TORCH_HOME", str(DATA_DIR / "_torch"))
+MODEL_CACHE = DATA_DIR / "_models"
+os.environ.setdefault("TORCH_HOME", str(MODEL_CACHE / "torch"))
+os.environ.setdefault("HF_HOME", str(MODEL_CACHE / "hf"))
+os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
+os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
 
 
 def fix_streams():
@@ -36,11 +40,17 @@ def seed_models():
     src = HERE / "models"
     if not src.is_dir():
         return
-    dst = Path(os.environ["TORCH_HOME"]) / "hub" / "checkpoints"
-    dst.mkdir(parents=True, exist_ok=True)
-    for f in src.iterdir():
-        if f.is_file() and not (dst / f.name).exists():
-            shutil.copy2(f, dst / f.name)
+    for sub, env in (("torch", "TORCH_HOME"), ("hf", "HF_HOME")):
+        base = src / sub
+        if not base.is_dir():
+            continue
+        dst_root = Path(os.environ[env])
+        for f in base.rglob("*"):
+            if f.is_file():
+                d = dst_root / f.relative_to(base)
+                if not d.exists():
+                    d.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(f, d)
 
 
 # ----------------------------------------------------------------------------

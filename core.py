@@ -87,14 +87,17 @@ def separate(path, model_name, status_cb, progress_cb):
 
     status_cb(f"Memisahkan suara dengan {'GPU' if device == 'cuda' else 'CPU'}… "
               f"(bisa beberapa menit)")
-    original_tqdm = dapply.tqdm
-    dapply.tqdm = _FakeTqdm
+    original_tqdm = getattr(dapply, "tqdm", None)
+    hook = original_tqdm is not None and hasattr(original_tqdm, "tqdm")
+    if hook:
+        dapply.tqdm = _FakeTqdm
     try:
         with torch.no_grad():
             sources = apply_model(model, wav_n[None], device=device, shifts=1,
-                                  split=True, overlap=0.25, progress=True)[0]
+                                  split=True, overlap=0.25, progress=hook)[0]
     finally:
-        dapply.tqdm = original_tqdm
+        if hook:
+            dapply.tqdm = original_tqdm
 
     sources = sources * std + mean
     return {name: np.ascontiguousarray(sources[i].cpu().numpy().astype(np.float32))

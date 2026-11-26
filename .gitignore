@@ -8,3 +8,4 @@ models/
 torch_cache/
 *.spec
 selftest-*.log
+model_cache/
