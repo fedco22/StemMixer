@@ -1,0 +1,86 @@
+name: Build Windows installer
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 120
+    env:
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies (CPU)
+        run: |
+          python -m pip install --upgrade pip
+          pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+          pip install -r requirements-build.txt
+          pip list
+
+      - name: Download AI model
+        run: python build/fetch_model.py
+
+      - name: Self-test (Python)
+        shell: pwsh
+        run: |
+          python stemmixer_app.py --selftest selftest-python.log
+          $code = $LASTEXITCODE
+          Get-Content selftest-python.log
+          if ($code -ne 0) { exit 1 }
+
+      - name: Build exe (PyInstaller)
+        shell: pwsh
+        run: |
+          pyinstaller --noconfirm --clean --windowed --name StemMixer `
+            --icon build/icon.ico `
+            --add-data "web;web" --add-data "models;models" `
+            --collect-all demucs --collect-all pedalboard --collect-all webview `
+            --collect-all julius --collect-all einops --collect-all openunmix `
+            --collect-all pythonnet --collect-all clr_loader `
+            stemmixer_app.py
+          "{0:N0} MB" -f ((Get-ChildItem dist/StemMixer -Recurse | Measure-Object Length -Sum).Sum / 1MB)
+
+      - name: Self-test (exe)
+        shell: pwsh
+        run: |
+          $log = Join-Path $PWD "selftest-exe.log"
+          $p = Start-Process -FilePath "dist\StemMixer\StemMixer.exe" -ArgumentList "--selftest", "`"$log`"" -Wait -PassThru
+          Get-Content $log
+          if ($p.ExitCode -ne 0) { exit 1 }
+
+      - name: Build installer (Inno Setup)
+        shell: pwsh
+        run: |
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress }
+          & $iscc "/DMyAppVersion=1.0.${{ github.run_number }}" build\installer.iss
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Get-ChildItem Output
+
+      - name: Upload logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: selftest-logs
+          path: selftest-*.log
+          if-no-files-found: ignore
+
+      - name: Publish release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "v1.0.${{ github.run_number }}"
+          $notes = "Unduh StemMixer-Setup.exe di bawah, jalankan, lalu ikuti petunjuk instalasi. Tidak perlu Python."
+          gh release create $tag Output/StemMixer-Setup.exe --title "Stem Mixer $tag" --notes $notes

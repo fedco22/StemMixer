@@ -1,0 +1,6 @@
+numpy
+sounddevice
+pedalboard>=0.9.8
+demucs
+torch
+torchaudio

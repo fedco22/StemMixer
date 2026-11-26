@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stem Mixer</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --panel2:#1e222b; --line:#2a2f3a;
+    --text:#e8eaf0; --muted:#8b93a7; --accent:#5b8cff; --accent2:#3d6fe8;
+    --ok:#34c38f; --warn:#f5a524; --danger:#f04f5f;
+    --vocals:#ff6b9a; --drums:#f5a524; --bass:#5b8cff; --guitar:#34c38f; --piano:#b38cff; --other:#3cc8d8;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+       font:14px/1.45 "Segoe UI",system-ui,-apple-system,Roboto,sans-serif}
+  header{display:flex;align-items:center;gap:12px;padding:14px 22px;border-bottom:1px solid var(--line)}
+  header h1{font-size:18px;margin:0;font-weight:650;letter-spacing:.2px}
+  header .sub{color:var(--muted);font-size:13px}
+  main{display:grid;grid-template-columns:300px 1fr;gap:16px;padding:16px 22px;max-width:1280px;margin:0 auto}
+  @media (max-width:900px){main{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
+  .card h2{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 12px;font-weight:600}
+  .stack>*+*{margin-top:16px}
+  button{font:inherit;color:var(--text);background:var(--panel2);border:1px solid var(--line);
+         border-radius:8px;padding:7px 12px;cursor:pointer}
+  button:hover:not(:disabled){border-color:#3b4252;background:#232834}
+  button:disabled{opacity:.45;cursor:default}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+  button.primary:hover:not(:disabled){background:var(--accent2)}
+  select{font:inherit;color:var(--text);background:var(--panel2);border:1px solid var(--line);
+         border-radius:8px;padding:7px 8px;width:100%}
+  .drop{border:2px dashed var(--line);border-radius:10px;padding:22px 12px;text-align:center;
+        color:var(--muted);cursor:pointer;transition:.15s}
+  .drop:hover,.drop.over{border-color:var(--accent);color:var(--text);background:#1a2030}
+  .drop b{color:var(--text)}
+  .bar{height:6px;background:var(--panel2);border-radius:99px;overflow:hidden;margin-top:10px}
+  .bar>div{height:100%;width:0;background:var(--accent);transition:width .3s}
+  .msg{color:var(--muted);font-size:12.5px;margin-top:6px;min-height:18px}
+  .lib{list-style:none;margin:0;padding:0;max-height:340px;overflow:auto}
+  .lib li{display:flex;align-items:center;gap:8px;padding:8px;border-radius:8px;cursor:pointer}
+  .lib li:hover{background:var(--panel2)}
+  .lib li.active{background:#1f2a44}
+  .lib .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .lib .m{font-size:11px;color:var(--muted)}
+  .lib .x{padding:2px 7px;font-size:12px;background:none;border-color:transparent;color:var(--muted)}
+  .lib .x:hover{color:var(--danger)}
+  .empty{color:var(--muted);font-size:13px}
+  .title{font-size:20px;font-weight:650;margin:0 0 2px}
+  .presets{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+  .presets button{font-size:13px;padding:6px 10px}
+  .stem{display:grid;grid-template-columns:96px 1fr 52px 40px 40px;align-items:center;gap:10px;
+        padding:9px 0;border-top:1px solid var(--line)}
+  .stem:first-child{border-top:none}
+  .stem .name{display:flex;align-items:center;gap:8px;font-weight:600}
+  .dot{width:10px;height:10px;border-radius:50%}
+  .stem .val{text-align:right;font-variant-numeric:tabular-nums;color:var(--muted)}
+  .tog{padding:5px 0;font-size:12px;font-weight:700;width:40px}
+  .tog.m.on{background:var(--danger);border-color:var(--danger);color:#fff}
+  .tog.s.on{background:var(--warn);border-color:var(--warn);color:#111}
+  .stem.silent .name,.stem.silent .val{opacity:.4}
+  input[type=range]{width:100%;accent-color:var(--accent);height:22px}
+  .row{display:grid;grid-template-columns:120px 1fr 190px;align-items:center;gap:12px;margin:6px 0}
+  .row .lbl{color:var(--muted)}
+  .row .out{font-variant-numeric:tabular-nums}
+  .pt-actions{display:flex;gap:8px;margin-top:10px;align-items:center}
+  .pending{color:var(--warn);font-size:12.5px}
+  .transport{display:flex;align-items:center;gap:12px}
+  .play{width:46px;height:46px;border-radius:50%;font-size:18px;padding:0;background:var(--accent);
+        border-color:var(--accent);color:#fff}
+  .play:hover:not(:disabled){background:var(--accent2)}
+  .time{font-variant-numeric:tabular-nums;color:var(--muted);min-width:96px;text-align:right}
+  .exports{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+  .hint{color:var(--muted);font-size:12px;margin-top:10px}
+  .hidden{display:none!important}
+  .toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(20px);opacity:0;
+         background:#222a3a;border:1px solid #33405a;color:var(--text);padding:10px 16px;border-radius:10px;
+         box-shadow:0 8px 30px rgba(0,0,0,.4);transition:.25s;z-index:10;max-width:80vw}
+  .toast.show{opacity:1;transform:translateX(-50%)}
+  .toast a{color:var(--accent);cursor:pointer;margin-left:10px}
+  kbd{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:0 5px;font-size:11px}
+</style>
+</head>
+<body>
+<header>
+  <h1>🎚️ Stem Mixer</h1>
+  <span class="sub">Vocal remover · stem splitter · pitch &amp; tempo — semua diproses di PC Anda</span>
+</header>
+
+<main>
+  <!-- Kolom kiri -->
+  <div class="stack">
+    <section class="card">
+      <h2>Lagu baru</h2>
+      <select id="model"></select>
+      <div style="height:10px"></div>
+      <div class="drop" id="drop">
+        <b>Tarik lagu ke sini</b><br>atau klik untuk memilih<br>
+        <span style="font-size:12px">mp3 · wav · flac · m4a · ogg</span>
+      </div>
+      <input type="file" id="file" accept="audio/*,.mp3,.wav,.flac,.m4a,.ogg,.aac" class="hidden">
+      <div class="bar"><div id="progress"></div></div>
+      <div class="msg" id="msg"></div>
+    </section>
+
+    <section class="card">
+      <h2>Pustaka</h2>
+      <ul class="lib" id="lib"></ul>
+    </section>
+  </div>
+
+  <!-- Kolom kanan -->
+  <div class="stack">
+    <section class="card" id="welcome">
+      <p class="title">Selamat datang 👋</p>
+      <p class="empty">Pilih model lalu tarik sebuah lagu ke kotak di kiri. AI akan memisahkan vokal,
+        drum, bass, dan instrumen lain. Setelah itu Anda bisa mengatur volume tiap bagian, mengubah key,
+        dan mengubah tempo.</p>
+      <p class="empty">Pertama kali, model AI (±80 MB) diunduh otomatis. Lagu yang sudah diproses
+        tersimpan di Pustaka sehingga bisa dibuka lagi tanpa menunggu.</p>
+    </section>
+
+    <section class="card hidden" id="mixerCard">
+      <p class="title" id="songTitle"></p>
+      <p class="empty" id="songInfo" style="margin:0 0 14px"></p>
+      <h2>Mixer — geser ke 0 untuk menghilangkan suara</h2>
+      <div class="presets">
+        <button data-p="karaoke">🎤 Karaoke (hapus vokal)</button>
+        <button data-p="acapella">Hanya vokal</button>
+        <button data-p="nobass">Tanpa bass</button>
+        <button data-p="nodrums">Tanpa drum</button>
+        <button data-p="reset">Reset 100%</button>
+      </div>
+      <div id="stems"></div>
+      <div class="stem" style="border-top:1px solid var(--line)">
+        <div class="name">Master</div>
+        <input type="range" id="master" min="0" max="150" value="100">
+        <div class="val" id="masterVal">100%</div>
+        <div></div><div></div>
+      </div>
+    </section>
+
+    <section class="card hidden" id="ptCard">
+      <h2>Pitch (key) &amp; tempo</h2>
+      <div class="row">
+        <span class="lbl">Pitch</span>
+        <input type="range" id="semis" min="-12" max="12" step="1" value="0">
+        <span class="out" id="semisOut">Key asli</span>
+      </div>
+      <div class="row">
+        <span class="lbl">Tempo</span>
+        <input type="range" id="tempo" min="50" max="150" step="1" value="100">
+        <span class="out" id="tempoOut">Tempo asli</span>
+      </div>
+      <div class="pt-actions">
+        <button class="primary" id="apply">Terapkan</button>
+        <button id="ptReset">Reset</button>
+        <span class="pending hidden" id="pending">● Belum diterapkan</span>
+      </div>
+      <div class="hint">Pitch dan tempo tidak saling memengaruhi. 2 semitone = 1 nada.
+        Hasilnya disimpan, jadi kombinasi yang sama berikutnya langsung siap.</div>
+    </section>
+
+    <section class="card hidden" id="playCard">
+      <h2>Putar &amp; ekspor</h2>
+      <div class="transport">
+        <button class="play" id="play" title="Putar / jeda (spasi)">▶</button>
+        <button id="stop" title="Kembali ke awal">■</button>
+        <input type="range" id="seek" min="0" max="1000" value="0" step="1">
+        <span class="time" id="time">0:00 / 0:00</span>
+      </div>
+      <div class="exports">
+        <button id="exportMix">⬇ Simpan hasil mix (WAV)</button>
+        <span id="stemLinks" style="display:contents"></span>
+      </div>
+      <div class="hint"><kbd>Spasi</kbd> putar/jeda. Klik tombol stem untuk menyimpan bagian itu saja.</div>
+    </section>
+  </div>
+</main>
+
+<div class="toast" id="toast"></div>
+<script>
+const $ = s => document.querySelector(s);
+const COLORS = {vocals:"var(--vocals)",drums:"var(--drums)",bass:"var(--bass)",
+                guitar:"var(--guitar)",piano:"var(--piano)",other:"var(--other)"};
+
+// ---------- State ----------
+const S = {
+  songs: [], song: null, variant: "orig", applied: {semis: 0, tempo: 100},
+  stems: [],          // [{name,label,url}]
+  buffers: {},        // name -> AudioBuffer
+  vol: {}, mute: {}, solo: {},
+  busy: false,
+};
+
+// ---------- Audio engine ----------
+const ctx = new (window.AudioContext || window.webkitAudioContext)({sampleRate: 44100});
+const master = ctx.createGain(); master.connect(ctx.destination);
+const gainNodes = {};
+let sources = [], playing = false, startedAt = 0, offset = 0, duration = 0;
+
+function effGain(name){
+  const anySolo = Object.values(S.solo).some(Boolean);
+  if (S.mute[name] || (anySolo && !S.solo[name])) return 0;
+  return (S.vol[name] ?? 100) / 100;
+}
+function applyGains(){
+  for (const st of S.stems){
+    const g = gainNodes[st.name]; if (!g) continue;
+    g.gain.setTargetAtTime(effGain(st.name), ctx.currentTime, 0.015);
+    const row = document.querySelector(`.stem[data-n="${st.name}"]`);
+    if (row) row.classList.toggle("silent", effGain(st.name) === 0);
+  }
+  master.gain.setTargetAtTime(+$("#master").value / 100, ctx.currentTime, 0.015);
+}
+function now(){ return playing ? Math.min(ctx.currentTime - startedAt, duration) : offset; }
+function stopSources(){
+  for (const s of sources){ s.onended = null; try{ s.stop(); }catch(e){} s.disconnect(); }
+  sources = [];
+}
+function startAt(t){
+  stopSources();
+  offset = Math.max(0, Math.min(t, duration));
+  for (const st of S.stems){
+    const b = S.buffers[st.name]; if (!b) continue;
+    const src = ctx.createBufferSource();
+    src.buffer = b; src.connect(gainNodes[st.name]);
+    src.start(0, offset);
+    sources.push(src);
+  }
+  startedAt = ctx.currentTime - offset;
+  playing = true;
+}
+async function togglePlay(){
+  if (!S.stems.length) return;
+  if (ctx.state === "suspended") await ctx.resume();
+  if (playing){ offset = now(); stopSources(); playing = false; }
+  else startAt(offset >= duration ? 0 : offset);
+  updatePlayBtn();
+}
+function stopPlay(){ stopSources(); playing = false; offset = 0; updatePlayBtn(); }
+function seekTo(t){ if (playing) startAt(t); else offset = t; }
+function updatePlayBtn(){ $("#play").textContent = playing ? "❚❚" : "▶"; }
+
+function fmt(t){ t = Math.max(0, t|0); return `${(t/60)|0}:${String(t%60).padStart(2,"0")}`; }
+let seeking = false;
+function tick(){
+  if (playing && now() >= duration - 0.01){ stopPlay(); }
+  if (!seeking && duration) $("#seek").value = now() / duration * 1000;
+  $("#time").textContent = `${fmt(seeking ? $("#seek").value/1000*duration : now())} / ${fmt(duration)}`;
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+
+// ---------- API ----------
+async function api(path, opts){
+  const r = await fetch(path, opts);
+  const j = await r.json().catch(() => ({error: "respon tidak valid"}));
+  if (!r.ok || j.error) throw new Error(j.error || r.statusText);
+  return j;
+}
+function setProgress(p, msg){
+  $("#progress").style.width = `${Math.round((p||0)*100)}%`;
+  if (msg !== undefined) $("#msg").textContent = msg;
+}
+function waitJob(id){
+  return new Promise((resolve, reject) => {
+    const iv = setInterval(async () => {
+      try{
+        const j = await api(`/api/job?id=${id}`);
+        setProgress(j.progress, j.message);
+        if (j.state === "done"){ clearInterval(iv); resolve(j.result); }
+        if (j.state === "error"){ clearInterval(iv); reject(new Error(j.error)); }
+      }catch(e){ clearInterval(iv); reject(e); }
+    }, 600);
+  });
+}
+function setBusy(b){
+  S.busy = b;
+  for (const el of ["#apply", "#ptReset"]) $(el).disabled = b;
+  $("#drop").style.pointerEvents = b ? "none" : "";
+  $("#drop").style.opacity = b ? .5 : 1;
+}
+function showError(e){
+  console.error(e);
+  setProgress(0, "Terjadi kesalahan.");
+  alert("Terjadi kesalahan:\n\n" + String(e.message || e).slice(-1200));
+}
+
+// ---------- Library ----------
+async function refreshLibrary(){
+  const j = await api("/api/songs");
+  S.songs = j.songs;
+  if (!$("#model").options.length){
+    for (const [k, v] of Object.entries(j.models)){
+      const o = document.createElement("option"); o.value = k; o.textContent = v; $("#model").append(o);
+    }
+  }
+  const lib = $("#lib"); lib.innerHTML = "";
+  if (!S.songs.length){ lib.innerHTML = `<li class="empty" style="cursor:default">Belum ada lagu.</li>`; return; }
+  for (const s of S.songs){
+    const li = document.createElement("li");
+    li.className = s.id === S.song ? "active" : "";
+    li.innerHTML = `<div class="t"><div>${esc(s.title)}</div><div class="m">${esc(s.model)} · ${s.stems.length} stem</div></div>`;
+    const x = document.createElement("button"); x.className = "x"; x.textContent = "✕"; x.title = "Hapus dari pustaka";
+    x.onclick = async ev => {
+      ev.stopPropagation();
+      if (!confirm(`Hapus "${s.title}" dari pustaka?`)) return;
+      await api("/api/delete", {method: "POST", body: JSON.stringify({song: s.id})});
+      if (S.song === s.id) location.reload(); else refreshLibrary();
+    };
+    li.append(x);
+    li.onclick = () => openSong(s.id);
+    lib.append(li);
+  }
+}
+function esc(t){ return String(t).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+
+async function openSong(id){
+  if (S.busy) return;
+  stopPlay();
+  S.song = id; S.applied = {semis: 0, tempo: 100};
+  $("#semis").value = 0; $("#tempo").value = 100; updatePT();
+  setBusy(true);
+  try{
+    const j = await api("/api/variant", {method: "POST",
+      body: JSON.stringify({song: id, semitones: 0, tempo: 100})});
+    await loadPayload(j.ready, true);
+  }catch(e){ showError(e); }
+  setBusy(false);
+  refreshLibrary();
+}
+
+// ---------- Upload & separate ----------
+async function handleFile(file){
+  if (!file || S.busy) return;
+  stopPlay();
+  setBusy(true);
+  setProgress(0, `Mengirim ${file.name}…`);
+  try{
+    const model = $("#model").value;
+    const j = await api(`/api/separate?model=${encodeURIComponent(model)}`, {
+      method: "POST", body: file, headers: {"X-Filename": encodeURIComponent(file.name)}});
+    const result = await waitJob(j.job);
+    S.song = result.song; S.applied = {semis: 0, tempo: 100};
+    $("#semis").value = 0; $("#tempo").value = 100; updatePT();
+    await loadPayload(result, true);
+    await refreshLibrary();
+  }catch(e){ showError(e); }
+  setBusy(false);
+}
+const drop = $("#drop");
+drop.onclick = () => $("#file").click();
+$("#file").onchange = e => { handleFile(e.target.files[0]); e.target.value = ""; };
+drop.ondragover = e => { e.preventDefault(); drop.classList.add("over"); };
+drop.ondragleave = () => drop.classList.remove("over");
+drop.ondrop = e => { e.preventDefault(); drop.classList.remove("over"); handleFile(e.dataTransfer.files[0]); };
+window.addEventListener("dragover", e => e.preventDefault());
+window.addEventListener("drop", e => e.preventDefault());
+
+// ---------- Load stems into browser ----------
+async function loadPayload(payload, fresh){
+  setProgress(0, "Memuat audio ke browser…");
+  let done = 0;
+  const decoded = await Promise.all(payload.stems.map(async st => {
+    const ab = await (await fetch(st.url)).arrayBuffer();
+    const buf = await ctx.decodeAudioData(ab);
+    setProgress(++done / payload.stems.length);
+    return [st.name, buf];
+  }));
+  const wasPlaying = playing, pos = now();
+  const oldTempo = S.loadedTempo || 100;
+  stopSources(); playing = false;
+
+  S.stems = payload.stems; S.variant = payload.variant;
+  S.buffers = Object.fromEntries(decoded);
+  duration = Math.min(...decoded.map(([, b]) => b.duration));
+  for (const st of S.stems){
+    if (!gainNodes[st.name]){ gainNodes[st.name] = ctx.createGain(); gainNodes[st.name].connect(master); }
+  }
+  if (fresh){
+    S.vol = {}; S.mute = {}; S.solo = {};
+    for (const st of S.stems) S.vol[st.name] = 100;
+    buildMixer();
+    offset = 0;
+  } else {
+    offset = Math.min(pos * oldTempo / S.applied.tempo, duration);
+  }
+  S.loadedTempo = S.applied.tempo;
+  applyGains();
+  if (wasPlaying) startAt(offset);
+  updatePlayBtn();
+  const info = S.songs.find(s => s.id === S.song);
+  $("#songTitle").textContent = info ? info.title : S.song.replace(/\s*\[.*\]$/, "");
+  buildStemLinks();
+  $("#songInfo").textContent = `${S.stems.length} stem · ${fmt(duration)}` +
+    (S.variant !== "orig" ? ` · pitch ${signed(S.applied.semis)} · tempo ${S.applied.tempo}%` : "");
+  for (const id of ["#welcome"]) $(id).classList.add("hidden");
+  for (const id of ["#mixerCard", "#ptCard", "#playCard"]) $(id).classList.remove("hidden");
+  setProgress(1, "Siap.");
+}
+
+function buildMixer(){
+  const box = $("#stems"); box.innerHTML = "";
+  for (const st of S.stems){
+    const row = document.createElement("div");
+    row.className = "stem"; row.dataset.n = st.name;
+    row.innerHTML = `
+      <div class="name"><span class="dot" style="background:${COLORS[st.name] || "var(--muted)"}"></span>${esc(st.label)}</div>
+      <input type="range" min="0" max="150" value="100" style="accent-color:${COLORS[st.name] || "var(--accent)"}">
+      <div class="val">100%</div>
+      <button class="tog m" title="Mute">M</button>
+      <button class="tog s" title="Solo">S</button>`;
+    const [range] = row.getElementsByTagName("input");
+    const val = row.querySelector(".val"), m = row.querySelector(".m"), s = row.querySelector(".s");
+    range.oninput = () => { S.vol[st.name] = +range.value; val.textContent = range.value + "%"; applyGains(); };
+    m.onclick = () => { S.mute[st.name] = !S.mute[st.name]; m.classList.toggle("on", S.mute[st.name]); applyGains(); };
+    s.onclick = () => { S.solo[st.name] = !S.solo[st.name]; s.classList.toggle("on", S.solo[st.name]); applyGains(); };
+    row._set = v => { range.value = v; range.oninput(); m.classList.remove("on"); s.classList.remove("on"); };
+    box.append(row);
+  }
+}
+document.querySelectorAll(".presets button").forEach(b => b.onclick = () => {
+  const p = b.dataset.p;
+  S.mute = {}; S.solo = {};
+  for (const row of document.querySelectorAll("#stems .stem")){
+    const n = row.dataset.n;
+    let v = 100;
+    if (p === "karaoke" && n === "vocals") v = 0;
+    if (p === "acapella" && n !== "vocals") v = 0;
+    if (p === "nobass" && n === "bass") v = 0;
+    if (p === "nodrums" && n === "drums") v = 0;
+    row._set(v);
+  }
+  applyGains();
+});
+$("#master").oninput = () => { $("#masterVal").textContent = $("#master").value + "%"; applyGains(); };
+
+// ---------- Pitch & tempo ----------
+function signed(n){ return n > 0 ? `+${n}` : `${n}`; }
+function updatePT(){
+  const s = +$("#semis").value, t = +$("#tempo").value;
+  $("#semisOut").textContent = s === 0 ? "Key asli" :
+    `${signed(s)} semitone (${s > 0 ? "naik" : "turun"} ${Math.abs(s) / 2} nada)`;
+  $("#tempoOut").textContent = t === 100 ? "Tempo asli" : `${t}% (${t > 100 ? "lebih cepat" : "lebih lambat"})`;
+  const pend = s !== S.applied.semis || t !== S.applied.tempo;
+  $("#pending").classList.toggle("hidden", !pend);
+}
+$("#semis").oninput = updatePT;
+$("#tempo").oninput = updatePT;
+$("#ptReset").onclick = () => { $("#semis").value = 0; $("#tempo").value = 100; updatePT(); applyPT(); };
+$("#apply").onclick = applyPT;
+async function applyPT(){
+  if (!S.song || S.busy) return;
+  const semis = +$("#semis").value, tempo = +$("#tempo").value;
+  if (semis === S.applied.semis && tempo === S.applied.tempo) return;
+  setBusy(true);
+  try{
+    setProgress(0, "Memproses pitch & tempo…");
+    const j = await api("/api/variant", {method: "POST",
+      body: JSON.stringify({song: S.song, semitones: semis, tempo})});
+    const payload = j.ready || await waitJob(j.job);
+    S.applied = {semis, tempo};
+    await loadPayload(payload, false);
+    updatePT();
+  }catch(e){ showError(e); }
+  setBusy(false);
+}
+
+// ---------- Transport bindings ----------
+$("#play").onclick = togglePlay;
+$("#stop").onclick = stopPlay;
+const seek = $("#seek");
+seek.addEventListener("pointerdown", () => seeking = true);
+seek.addEventListener("input", () => seeking = true);
+seek.addEventListener("change", () => { seeking = false; seekTo(seek.value / 1000 * duration); });
+window.addEventListener("keydown", e => {
+  if (e.code !== "Space") return;
+  const el = document.activeElement;
+  if (el && (el.tagName === "SELECT" || (el.tagName === "INPUT" && el.type !== "range"))) return;
+  e.preventDefault(); togglePlay();
+});
+
+// ---------- Export ----------
+function suffix(){
+  const p = [];
+  if (S.applied.semis) p.push(`${signed(S.applied.semis)}st`);
+  if (S.applied.tempo !== 100) p.push(`${S.applied.tempo}pct`);
+  return p.length ? " " + p.join(" ") : "";
+}
+function songTitle(){ return $("#songTitle").textContent || "lagu"; }
+const native = () => window.pywebview && window.pywebview.api;
+let toastTimer;
+function toast(html, ms = 5000){
+  const t = $("#toast"); t.innerHTML = html; t.classList.add("show");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove("show"), ms);
+}
+function savedToast(res){
+  if (!res) return;                       // dibatalkan
+  if (res.error) return showError(new Error(res.error));
+  toast(`✅ Tersimpan: ${esc(res.path)}<a id="openDir">Buka folder</a>` +
+        (res.clipped ? "<br>⚠️ Volume terlalu keras (clipping). Turunkan Master lalu simpan ulang." : ""), 7000);
+  const a = $("#openDir"); if (a) a.onclick = () => native().open_folder(res.path);
+}
+function downloadUrl(href, name){
+  const a = document.createElement("a"); a.href = href; a.download = name;
+  document.body.append(a); a.click(); a.remove();
+}
+function buildStemLinks(){
+  const box = $("#stemLinks"); box.innerHTML = "";
+  for (const st of S.stems){
+    const b = document.createElement("button");
+    b.textContent = `⬇ ${st.label}`;
+    b.onclick = async () => {
+      const name = `${songTitle()}${suffix()} - ${st.label}.wav`;
+      if (native()) savedToast(await native().save_stem(S.song, S.variant, st.name, name));
+      else downloadUrl(st.url, name);
+    };
+    box.append(b);
+  }
+}
+$("#exportMix").onclick = async () => {
+  if (!S.stems.length) return;
+  const btn = $("#exportMix"); btn.disabled = true; btn.textContent = "Menyiapkan…";
+  try{
+    if (native()){
+      const gains = Object.fromEntries(S.stems.map(st => [st.name, effGain(st.name)]));
+      savedToast(await native().save_mix({song: S.song, variant: S.variant, gains,
+        master: +$("#master").value / 100, filename: `${songTitle()} - mix${suffix()}.wav`}));
+      return;
+    }
+    const len = Math.floor(duration * 44100);
+    const off = new OfflineAudioContext(2, len, 44100);
+    const m = off.createGain(); m.gain.value = +$("#master").value / 100; m.connect(off.destination);
+    for (const st of S.stems){
+      const g = off.createGain(); g.gain.value = effGain(st.name); g.connect(m);
+      if (g.gain.value === 0) continue;
+      const src = off.createBufferSource(); src.buffer = S.buffers[st.name]; src.connect(g); src.start(0);
+    }
+    const out = await off.startRendering();
+    const blob = encodeWav(out);
+    const href = URL.createObjectURL(blob);
+    downloadUrl(href, `${songTitle()} - mix${suffix()}.wav`);
+    setTimeout(() => URL.revokeObjectURL(href), 60000);
+  }catch(e){ showError(e); }
+  finally{ btn.disabled = false; btn.textContent = "⬇ Simpan hasil mix (WAV)"; }
+};
+function encodeWav(buf){
+  const ch = buf.numberOfChannels, len = buf.length, sr = buf.sampleRate;
+  const ab = new ArrayBuffer(44 + len * ch * 2), v = new DataView(ab);
+  const w = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+  w(0, "RIFF"); v.setUint32(4, 36 + len * ch * 2, true); w(8, "WAVE"); w(12, "fmt ");
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, ch, true);
+  v.setUint32(24, sr, true); v.setUint32(28, sr * ch * 2, true); v.setUint16(32, ch * 2, true);
+  v.setUint16(34, 16, true); w(36, "data"); v.setUint32(40, len * ch * 2, true);
+  const pcm = new Int16Array(ab, 44, len * ch);
+  const chans = Array.from({length: ch}, (_, c) => buf.getChannelData(c));
+  for (let i = 0, k = 0; i < len; i++){
+    for (let c = 0; c < ch; c++, k++){
+      const x = Math.max(-1, Math.min(1, chans[c][i]));
+      pcm[k] = x < 0 ? x * 0x8000 : x * 0x7fff;
+    }
+  }
+  return new Blob([ab], {type: "audio/wav"});
+}
+
+refreshLibrary().catch(showError);
+</script>
+</body>
+</html>
